@@ -1,0 +1,128 @@
+version: '3'
+networks:
+  wordpress-net:
+    driver: bridge
+
+services:
+  # Contenedor de la base de datos MySQL (Maestro)
+  mysql-master:
+    image: mysql:latest
+    container_name: mysql-master
+    tty: true
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: wordpress_db
+      MYSQL_USER: wordpress_user
+      MYSQL_PASSWORD: wordpress_password
+    command: --server-id=1 --log-bin=mysql-bin --binlog-do-db=wordpress_db
+    volumes:
+      - "./var/libclea/mysql-master/:/var/lib/mysql"
+    networks:
+      - wordpress-net
+
+  # Contenedor de la base de datos MySQL (Esclavo)
+  mysql-slave:
+    image: mysql:latest
+    container_name: mysql-slave
+    tty: true
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: wordpress_db
+      MYSQL_USER: wordpress_user
+      MYSQL_PASSWORD: wordpress_password
+    command: --server-id=2 --log-bin=mysql-bin --binlog-do-db=wordpress_db
+    volumes:
+      - "./var/libclea/mysql-slave/:/var/lib/mysql"
+    depends_on:
+      - mysql-master
+    networks:
+      - wordpress-net
+
+  # Contenedor de WordPress (nodo 1)
+  wordpress1:
+    image: wordpress:latest
+    container_name: wordpress_contenedor1
+    environment:
+      WORDPRESS_DB_HOST: mysql-master
+      WORDPRESS_DB_NAME: wordpress_db
+      WORDPRESS_DB_USER: wordpress_user
+      WORDPRESS_DB_PASSWORD: wordpress_password
+      WORDPRESS_TABLE_PREFIX: tabla1_
+    depends_on:
+      - mysql-master
+    ports:
+      - "81:80" # Exponer el puerto 8081 en el host y mapearlo al puerto 80 del contenedor
+    volumes:
+      - "./var/www/html/wordpress1:/var/www/html"
+    networks:
+      - wordpress-net
+
+  # Contenedor de WordPress (nodo 2)
+  wordpress2:
+    image: wordpress:latest
+    container_name: wordpress_contenedor2
+    environment:
+      WORDPRESS_DB_HOST: mysql-master
+      WORDPRESS_DB_NAME: wordpress_db
+      WORDPRESS_DB_USER: wordpress_user
+      WORDPRESS_DB_PASSWORD: wordpress_password
+      WORDPRESS_TABLE_PREFIX: tabla2_
+    depends_on:
+      - mysql-master
+    ports:
+      - "82:80" # Exponer el puerto 8082 en el host y mapearlo al puerto 80 del contenedor
+    volumes:
+      - "./var/www/html/wordpress2:/var/www/html"
+    networks:
+      - wordpress-net
+
+  # Contenedor de WordPress (nodo 3)
+  wordpress3:
+    image: wordpress:latest
+    container_name: wordpress_contenedor3
+    environment:
+      WORDPRESS_DB_HOST: mysql-master
+      WORDPRESS_DB_NAME: wordpress_db
+      WORDPRESS_DB_USER: wordpress_user
+      WORDPRESS_DB_PASSWORD: wordpress_password
+      WORDPRESS_TABLE_PREFIX: tabla3_
+    depends_on:
+      - mysql-master
+    ports:
+      - "83:80" # Exponer el puerto 8083 en el host y mapearlo al puerto 80 del contenedor
+    volumes:
+      - "./var/www/html/wordpress3:/var/www/html"
+    networks:
+      - wordpress-net
+
+  # Contenedor de NGINX como balanceador de carga
+  nginx:
+    container_name: nginx
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - "8082:80"
+    depends_on:
+      - wordpress1
+      - wordpress2
+      - wordpress3
+    networks:
+      - wordpress-net
+
+  # Contenedor de phpMyAdmin para gestionar la base de datos
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: "mysql-master, mysql-slave"
+      PMA_ARBITRARY: 1
+    depends_on:
+      - mysql-master
+      - mysql-slave
+    networks:
+      - wordpress-net
+  
+ 
